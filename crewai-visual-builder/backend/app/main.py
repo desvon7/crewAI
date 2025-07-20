@@ -1,29 +1,55 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
+import logging
+
+from app.core.config import settings
+from app.core.database import init_db
+from app.api.v1 import auth, crews
+
+# Configure logging
+logging.basicConfig(
+    level=getattr(logging, settings.LOG_LEVEL),
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 app = FastAPI(
-    title="CrewAI Visual Builder API",
+    title=settings.PROJECT_NAME,
     description="Backend API for CrewAI Visual Builder",
-    version="0.1.0"
+    version=settings.VERSION
 )
 
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3001", "http://127.0.0.1:3001"],
+    allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Include routers
+app.include_router(auth.router, prefix=settings.API_V1_STR)
+app.include_router(crews.router, prefix=settings.API_V1_STR)
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize application on startup"""
+    try:
+        # Initialize database
+        init_db()
+        logging.info("Application started successfully")
+    except Exception as e:
+        logging.error(f"Failed to start application: {e}")
+        raise
+
 @app.get("/")
 async def root():
-    return {"message": "CrewAI Visual Builder API"}
+    return {"message": f"{settings.PROJECT_NAME} API"}
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "service": "crewai-visual-builder"}
+    return {"status": "healthy", "service": settings.PROJECT_NAME}
 
 @app.get("/api/v1/crews")
 async def get_crews():
